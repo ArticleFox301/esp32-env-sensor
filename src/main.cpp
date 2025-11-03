@@ -5,6 +5,8 @@
 #include "sensors.h"
 #include "display.h"
 #include "storage.h"
+#include "alert.h"
+
 
 const char* ssid = "P 2908";
 const char* password = "@dimuonnoi@";
@@ -42,6 +44,7 @@ void handleLogHtml() {
 
 void setup() {
   Serial.begin(115200);
+  
 
   if(!SPIFFS.begin(true)) {
     Serial.println("SPIFFS failed");
@@ -65,6 +68,7 @@ void setup() {
   sensors_init();
   display_init();
   storage_init();
+  alert_init();
 
   Serial.println("✅ Hệ thống sẵn sàng");
 }
@@ -84,6 +88,8 @@ void loop() {
     appendJSON(t, h, l, aq);
 
   }
-  
+  alert_light(l);
+  alert_air(aq);
+
   delay(5000);
 }
