@@ -6,6 +6,7 @@
 #include "display.h"
 #include "storage.h"
 #include "alert.h"
+#include "thingspeak.h"
 
 
 const char* ssid = "P 2908";
@@ -69,6 +70,7 @@ void setup() {
   display_init();
   storage_init();
   alert_init();
+  thingspeak_init();
 
   Serial.println("✅ Hệ thống sẵn sàng");
 }
@@ -87,6 +89,12 @@ void loop() {
     display_show(t, h, l, aq);
     appendJSON(t, h, l, aq);
 
+    // Send data to ThingSpeak every 20 seconds (to respect API limits)
+    static unsigned long lastThingSpeakUpdate = 0;
+    if (millis() - lastThingSpeakUpdate > 20000) { // 20 seconds
+      sendToThingSpeak(t, h, l, aq);
+      lastThingSpeakUpdate = millis();
+    }
   }
   alert_light(l);
   alert_air(aq);
