@@ -9,4 +9,8 @@
 // Buzzer
 #define BUZZER 25
 
+// Relays
+#define RELAY1 26
+#define RELAY2 27
+
 #endif
