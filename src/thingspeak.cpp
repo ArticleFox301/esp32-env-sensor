@@ -10,7 +10,7 @@ const unsigned long THINGSPEAK_CHANNEL_ID = 3157040;         // Replace with you
 // - 0000000 with: 3157040
 
 // WiFiClient for ThingSpeak
-WiFiClient client;
+static WiFiClient client;
 
 // Initialize ThingSpeak
 void thingspeak_init() {

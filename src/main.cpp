@@ -8,6 +8,7 @@
 #include "alert.h"
 #include "thingspeak.h"
 #include "relay.h"
+#include "mqtt.h"
 
 
 const char* ssid = "P 2908";
@@ -142,12 +143,14 @@ void setup() {
   alert_init();
   thingspeak_init();
   relay_init();  // Initialize relays
+  mqtt_init();   // Initialize MQTT
 
   Serial.println("✅ Hệ thống sẵn sàng");
 }
 
 void loop() {
   server.handleClient();
+  mqtt_loop();  // Handle MQTT operations
 
   float t = readTemperature();
   float h = readHumidity();
@@ -166,6 +169,9 @@ void loop() {
       sendToThingSpeak(t, h, l, aq);
       lastThingSpeakUpdate = millis();
     }
+
+    // Publish data to MQTT (real-time)
+    mqtt_publish_sensor_data(t, h, l, aq);
   }
   alert_light(l);
   alert_air(aq);
