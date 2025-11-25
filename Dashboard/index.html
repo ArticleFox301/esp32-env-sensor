@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESP32 Dashboard - IoT Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1><i class="fas fa-microchip"></i> ESP32 IoT Dashboard</h1>
+      <p class="subtitle">Theo dõi các cảm biến thời gian thực</p>
+      
+      <div class="controls">
+        <button class="btn btn-refresh" id="refreshBtn">
+          <i class="fas fa-sync-alt"></i> Làm mới dữ liệu
+        </button>
+      </div>
+      
+      <div class="status">
+        <span id="statusText">Đang kết nối...</span>
+      </div>
+      
+      <div class="error-message" id="errorMessage">
+        Không thể kết nối đến thiết bị ESP32
+      </div>
+    </header>
+
+    <div class="cards">
+      <div class="card temp">
+        <h3><i class="fas fa-thermometer-half"></i> Nhiệt độ</h3>
+        <div class="value">
+          <span id="tempValue">--</span>
+          <span class="unit">°C</span>
+        </div>
+      </div>
+      <div class="card humi">
+        <h3><i class="fas fa-tint"></i> Độ ẩm</h3>
+        <div class="value">
+          <span id="humiValue">--</span>
+          <span class="unit">%</span>
+        </div>
+      </div>
+      <div class="card light">
+        <h3><i class="fas fa-sun"></i> Ánh sáng</h3>
+        <div class="value">
+          <span id="lightValue">--</span>
+          <span class="unit">lx</span>
+        </div>
+      </div>
+      <div class="card air">
+        <h3><i class="fas fa-wind"></i> Không khí</h3>
+        <div class="value">
+          <span id="airValue">--</span>
+          <span class="unit">ppm</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-container">
+      <h2 class="chart-title">Biểu đồ theo dõi cảm biến</h2>
+      <canvas id="sensorChart"></canvas>
+      <div class="last-update">
+        Cập nhật lần cuối: <span id="lastUpdate">Chưa có dữ liệu</span>
+      </div>
+    </div>
+
+    <div class="controls-section">
+      <div class="relay-controls">
+        <h2>Điều khiển Relay</h2>
+        <div class="relay-buttons">
+          <div class="relay-control">
+            <label for="relay1">Relay 1</label>
+            <div class="switch">
+              <input type="checkbox" id="relay1" class="relay-switch">
+              <span class="slider"></span>
+            </div>
+          </div>
+          <div class="relay-control">
+            <label for="relay2">Relay 2</label>
+            <div class="switch">
+              <input type="checkbox" id="relay2" class="relay-switch">
+              <span class="slider"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mode-control">
+        <h2>Chế độ hoạt động</h2>
+        <div class="switch">
+          <input type="checkbox" id="autoMode" class="mode-switch">
+          <span class="slider"></span>
+        </div>
+        <label for="autoMode" class="mode-label">Tự động</label>
+      </div>
+    </div>
+
+    <footer>
+      <p>ESP32 IoT Dashboard • Hệ thống giám sát cảm biến thời gian thực</p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
