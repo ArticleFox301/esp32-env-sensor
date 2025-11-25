@@ -2,7 +2,8 @@
 const apiUrl = "http://your-esp32-ip/api/data"; // Replace with your ESP32 IP
 
 // MQTT Configuration for HiveMQ public broker
-const mqttBroker = "wss://broker.hivemq.com:8884/mqtt";
+// Using unencrypted WebSocket endpoint for HiveMQ public broker
+const mqttBroker = "ws://broker.hivemq.com:8000/mqtt";
 const mqttTopic = "esp32/sensors/data";
 const clientId = "dashboard_client_" + Math.random().toString(16).substr(2, 8);
 
@@ -91,57 +92,136 @@ function initChart() {
 
 // Initialize MQTT client
 function initMqtt() {
+  // Check if Paho library is loaded
+  console.log("Checking if Paho is available:", typeof Paho);
+  if (typeof Paho === 'undefined' || typeof Paho.Client === 'undefined') {
+    console.error("Paho MQTT library is not available");
+    statusText.textContent = "MQTT library not loaded, using HTTP fallback";
+    startHttpPolling();
+    return;
+  }
+  
   // Create a client instance
-  mqttClient = new Paho.MQTT.Client(mqttBroker, clientId);
+  console.log("Attempting to connect to MQTT broker: " + mqttBroker);
+  console.log("Client ID: " + clientId);
   
-  // Set callback handlers
-  mqttClient.onConnectionLost = onConnectionLost;
-  mqttClient.onMessageArrived = onMessageArrived;
-  
-  // Connect the client
-  mqttClient.connect({
-    onSuccess: onConnect,
-    onFailure: onConnectFailure
-  });
+  try {
+    // Create MQTT client - using correct constructor format
+    if (typeof Paho.Client !== 'undefined') {
+      mqttClient = new Paho.Client(mqttBroker, clientId);
+    } else {
+      console.error("Paho.Client is not available");
+      statusText.textContent = "MQTT client not available, using HTTP fallback";
+      startHttpPolling();
+      return;
+    }
+    
+    // Set callback handlers
+    mqttClient.onConnectionLost = onConnectionLost;
+    mqttClient.onMessageArrived = onMessageArrived;
+    
+    // Connect the client with more specific options
+    const connectOptions = {
+      onSuccess: onConnect,
+      onFailure: onConnectFailure,
+      useSSL: false, // Don't use SSL for unsecure WebSocket
+      timeout: 10,  // Connection timeout in seconds
+      cleanSession: true
+    };
+    
+    console.log("Connecting to MQTT broker with options...");
+    mqttClient.connect(connectOptions);
+  } catch (error) {
+    console.error("Error creating MQTT client:", error);
+    console.error("Error details:", error.message);
+    statusText.textContent = "MQTT client error, using HTTP fallback";
+    errorMessage.textContent = `MQTT client error: ${error.message}`;
+    errorMessage.style.display = "block";
+    startHttpPolling();
+  }
   
   function onConnect() {
     // Once a connection has been made, make a subscription and send a message.
-    console.log("MQTT connected to: " + mqttBroker);
+    console.log("MQTT connected successfully!");
+    console.log("Connected to: " + mqttBroker);
+    console.log("Client ID: " + clientId);
     statusText.textContent = "MQTT kết nối thành công";
+    errorMessage.style.display = "none";
     
     // Subscribe to the sensor data topic
-    mqttClient.subscribe(mqttTopic);
-    console.log("Subscribed to: " + mqttTopic);
+    try {
+      console.log("Subscribing to topic: " + mqttTopic);
+      const subscriptionOptions = {
+        qos: 0, // Quality of service level 0
+        onSuccess: function() {
+          console.log("Successfully subscribed to: " + mqttTopic);
+        },
+        onFailure: function() {
+          console.error("Failed to subscribe to: " + mqttTopic);
+        }
+      };
+      
+      mqttClient.subscribe(mqttTopic, subscriptionOptions);
+    } catch (error) {
+      console.error("Error subscribing to topic:", error);
+      console.error("Error details:", error.message);
+    }
   }
   
   function onConnectFailure(error) {
-    console.log("MQTT connection failed: " + error.errorMessage);
-    statusText.textContent = "MQTT lỗi kết nối, chuyển sang chế độ HTTP";
+    console.log("MQTT connection failed");
+    console.log("Error object:", error);
+    console.log("Error message:", error ? error.errorMessage : "No error message");
+    console.log("Error code:", error ? error.errorCode : "No error code");
+    
+    statusText.textContent = "MQTT lỗi kết nối, chuyển sang chế MODE HTTP";
+    errorMessage.textContent = `MQTT connection failed: ${error ? error.errorMessage : "Unknown error"}`;
+    errorMessage.style.display = "block";
+    
     // Fallback to HTTP polling if MQTT fails
     startHttpPolling();
   }
   
   function onConnectionLost(responseObject) {
     if (responseObject.errorCode !== 0) {
-      console.log("MQTT Connection lost: " + responseObject.errorMessage);
+      console.log("MQTT Connection lost:");
+      console.log("Error code:", responseObject.errorCode);
+      console.log("Error message:", responseObject.errorMessage || "No message");
+      
       statusText.textContent = "MQTT mất kết nối";
       errorMessage.textContent = "MQTT mất kết nối, đang thử lại...";
       errorMessage.style.display = "block";
       
-      // Try to reconnect
+      // Try to reconnect after delay
       setTimeout(function() {
-        mqttClient.connect({
-          onSuccess: onConnect,
-          onFailure: onConnectFailure
-        });
+        console.log("Attempting to reconnect to MQTT...");
+        try {
+          const reconnOptions = {
+            onSuccess: onConnect,
+            onFailure: onConnectFailure,
+            useSSL: true,
+            timeout: 10,
+            cleanSession: true
+          };
+          
+          mqttClient.connect(reconnOptions);
+        } catch (error) {
+          console.error("Error during reconnection attempt:", error);
+        }
       }, 5000);
+    } else {
+      console.log("MQTT Connection cleanly lost (no error code)");
     }
   }
   
   function onMessageArrived(message) {
+    console.log("Message arrived!");
+    console.log("Topic:", message.destinationName);
+    console.log("Payload:", message.payloadString);
+    
     try {
       const payload = JSON.parse(message.payloadString);
-      console.log("MQTT Message received:", payload);
+      console.log("Parsed MQTT message data:", payload);
       
       // Update dashboard with received sensor data
       updateDashboardData(payload);
@@ -152,6 +232,8 @@ function initMqtt() {
       errorMessage.style.display = "none";
     } catch (e) {
       console.error("Error parsing MQTT message:", e);
+      console.error("Problematic message:", message.payloadString);
+      console.error("Parse error:", e.message);
     }
   }
 }
@@ -337,6 +419,41 @@ refreshBtn.addEventListener("click", function() {
 // Initialize the chart and MQTT when the page loads
 document.addEventListener('DOMContentLoaded', function() {
   initChart();
-  // Initialize MQTT connection
-  initMqtt();
+  
+  // Check if Paho is loaded, and if not, wait for it
+  const checkPahoAndInit = function() {
+    console.log("Checking Paho availability...");
+    console.log("Paho object exists:", typeof Paho);
+    
+    if (typeof Paho !== 'undefined') {
+      console.log("Paho object:", Paho);
+      console.log("Paho has Client:", typeof Paho.Client);
+      
+      // The library might expose Client directly rather than Paho.MQTT.Client
+      if (typeof Paho.Client !== 'undefined') {
+        console.log("Paho.Client is available, initializing...");
+        // Initialize MQTT connection
+        initMqtt();
+        
+        // Start HTTP polling as fallback after a delay
+        setTimeout(function() {
+          if (!mqttClient || !mqttClient.isConnected()) {
+            console.log("MQTT not connected after 5 seconds, starting HTTP polling");
+            startHttpPolling();
+          } else {
+            console.log("MQTT is connected, no need for HTTP polling");
+          }
+        }, 5000);
+      } else {
+        console.log("Paho.Client not yet available, checking again in 500ms...");
+        setTimeout(checkPahoAndInit, 500);
+      }
+    } else {
+      console.log("Paho object not yet available, checking again in 500ms...");
+      setTimeout(checkPahoAndInit, 500);
+    }
+  };
+  
+  // Wait a short time to ensure the library is fully loaded, then start checking
+  setTimeout(checkPahoAndInit, 1000);
 });
