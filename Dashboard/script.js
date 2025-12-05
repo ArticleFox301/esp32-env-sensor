@@ -1,5 +1,5 @@
-// Configuration - you should replace with your actual ESP32 IP address
-const apiUrl = "http://your-esp32-ip/api/data"; // Replace with your ESP32 IP
+// Configuration - This is only used for HTTP fallback which is now disabled
+// Since ESP32 no longer hosts a web server, we rely solely on MQTT
 
 // MQTT Configuration for HiveMQ public broker
 // Using unencrypted WebSocket endpoint for HiveMQ public broker
@@ -111,8 +111,11 @@ function initMqtt() {
       mqttClient = new Paho.Client(mqttBroker, clientId);
     } else {
       console.error("Paho.Client is not available");
-      statusText.textContent = "MQTT client not available, using HTTP fallback";
-      startHttpPolling();
+      if (statusText) statusText.textContent = "MQTT client not available - no relay control possible";
+      if (errorMessage) {
+        errorMessage.textContent = "MQTT library not loaded - check if paho-mqtt.js is accessible";
+        errorMessage.style.display = "block";
+      }
       return;
     }
     
@@ -162,10 +165,18 @@ function initMqtt() {
       };
       
       mqttClient.subscribe(mqttTopic, subscriptionOptions);
+      
+      // Also subscribe to relay status updates
+      mqttClient.subscribe("esp32/relays/status", subscriptionOptions);
     } catch (error) {
       console.error("Error subscribing to topic:", error);
       console.error("Error details:", error.message);
     }
+    
+    // Enable switches when MQTT is connected
+    if (relay1Switch) relay1Switch.disabled = false;
+    if (relay2Switch) relay2Switch.disabled = false;
+    if (autoModeSwitch) autoModeSwitch.disabled = false;
   }
   
   function onConnectFailure(error) {
@@ -174,12 +185,12 @@ function initMqtt() {
     console.log("Error message:", error ? error.errorMessage : "No error message");
     console.log("Error code:", error ? error.errorCode : "No error code");
     
-    statusText.textContent = "MQTT lỗi kết nối, chuyển sang chế MODE HTTP";
+    statusText.textContent = "MQTT lỗi kết nối - không có phương thức dự phòng";
     errorMessage.textContent = `MQTT connection failed: ${error ? error.errorMessage : "Unknown error"}`;
     errorMessage.style.display = "block";
     
-    // Fallback to HTTP polling if MQTT fails
-    startHttpPolling();
+    // In non-web-server mode, there is no fallback method
+    console.warn("No fallback available - ESP32 does not host a web server");
   }
   
   function onConnectionLost(responseObject) {
@@ -192,14 +203,20 @@ function initMqtt() {
       errorMessage.textContent = "MQTT mất kết nối, đang thử lại...";
       errorMessage.style.display = "block";
       
+      // Disable controls when MQTT is disconnected
+      if (relay1Switch) relay1Switch.disabled = true;
+      if (relay2Switch) relay2Switch.disabled = true;
+      if (autoModeSwitch) autoModeSwitch.disabled = true;
+      
       // Try to reconnect after delay
       setTimeout(function() {
         console.log("Attempting to reconnect to MQTT...");
         try {
+          // Note: Removed useSSL: true since we're using unencrypted WebSocket
           const reconnOptions = {
             onSuccess: onConnect,
             onFailure: onConnectFailure,
-            useSSL: true,
+            useSSL: false, // Don't use SSL for unsecure WebSocket
             timeout: 10,
             cleanSession: true
           };
@@ -223,13 +240,33 @@ function initMqtt() {
       const payload = JSON.parse(message.payloadString);
       console.log("Parsed MQTT message data:", payload);
       
-      // Update dashboard with received sensor data
-      updateDashboardData(payload);
-      
-      // Update status and last update time
-      statusText.textContent = "MQTT cập nhật dữ liệu";
-      lastUpdate.textContent = new Date().toLocaleString();
-      errorMessage.style.display = "none";
+      // Check if this is a relay status message
+      if (message.destinationName === "esp32/relays/status") {
+        // Update relay switches based on status received from ESP32
+        if (payload.hasOwnProperty('relay1_state') && relay1Switch) {
+          relay1Switch.checked = payload.relay1_state;
+        }
+        if (payload.hasOwnProperty('relay2_state') && relay2Switch) {
+          relay2Switch.checked = payload.relay2_state;
+        }
+        if (payload.hasOwnProperty('manual_mode') && autoModeSwitch) {
+          autoModeSwitch.checked = !payload.manual_mode; // ESP32 sends manualMode, dashboard shows autoMode
+        }
+        
+        if (statusText) statusText.textContent = "Cập nhật trạng thái relay từ ESP32";
+        if (lastUpdate) lastUpdate.textContent = new Date().toLocaleString();
+        if (errorMessage) errorMessage.style.display = "none";
+      }
+      // Handle sensor data message
+      else if (message.destinationName === "esp32/sensors/data") {
+        // Update dashboard with received sensor data
+        updateDashboardData(payload);
+        
+        // Update status and last update time
+        if (statusText) statusText.textContent = "MQTT cập nhật dữ liệu cảm biến";
+        if (lastUpdate) lastUpdate.textContent = new Date().toLocaleString();
+        if (errorMessage) errorMessage.style.display = "none";
+      }
     } catch (e) {
       console.error("Error parsing MQTT message:", e);
       console.error("Problematic message:", message.payloadString);
@@ -265,55 +302,78 @@ function updateDashboardData(data) {
 }
 
 // DOM elements
-const refreshBtn = document.getElementById("refreshBtn");
-const statusText = document.getElementById("statusText");
-const errorMessage = document.getElementById("errorMessage");
-const lastUpdate = document.getElementById("lastUpdate");
+let refreshBtn = document.getElementById("refreshBtn");
+let statusText = document.getElementById("statusText");
+let errorMessage = document.getElementById("errorMessage");
+let lastUpdate = document.getElementById("lastUpdate");
 
-// Load data function (HTTP fallback)
+// Verify that all required DOM elements exist
+if (!refreshBtn) {
+  console.error("Refresh button element not found");
+}
+if (!statusText) {
+  console.error("Status text element not found");
+}
+if (!errorMessage) {
+  console.error("Error message element not found");
+}
+if (!lastUpdate) {
+  console.error("Last update element not found");
+}
+
+// Load data function (HTTP fallback) - DISABLED since ESP32 no longer hosts web server
 async function loadData() {
-  try {
-    statusText.textContent = "Đang tải dữ liệu qua HTTP...";
-    errorMessage.style.display = "none";
-    
-    const response = await fetch(apiUrl);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    // Update dashboard with received sensor data
-    updateDashboardData(data);
-
-    // Update status and last update time
-    statusText.textContent = "HTTP cập nhật dữ liệu";
-    lastUpdate.textContent = new Date().toLocaleString();
-    
-  } catch (err) {
-    console.error("Error loading data via HTTP:", err);
-    statusText.textContent = "Lỗi kết nối HTTP";
-    errorMessage.textContent = `Lỗi HTTP: ${err.message || "Không thể tải dữ liệu từ ESP32"}`;
-    errorMessage.style.display = "block";
-  }
+  console.warn('HTTP data loading is disabled. Using MQTT only.');
+  statusText.textContent = "HTTP polling disabled, ensure MQTT is connected for sensor data";
+  errorMessage.textContent = "Using MQTT only - ensure MQTT connection is active";
+  errorMessage.style.display = "block";
 }
 
-// Start HTTP polling as fallback
-function startHttpPolling() {
-  // Initial load
-  loadData();
-  // Auto-refresh every 5 seconds via HTTP if MQTT fails
-  setInterval(loadData, 5000);
+// HTTP polling is disabled when ESP32 doesn't host a web server
+// All communication happens via MQTT
+
+// Relay control elements - initially disabled until MQTT is connected
+let relay1Switch = document.getElementById('relay1');
+let relay2Switch = document.getElementById('relay2');
+let autoModeSwitch = document.getElementById('autoMode');
+
+// Verify that all required relay switch elements exist
+if (!relay1Switch) {
+  console.error("Relay 1 switch element not found");
+}
+if (!relay2Switch) {
+  console.error("Relay 2 switch element not found");
+}
+if (!autoModeSwitch) {
+  console.error("Auto mode switch element not found");
 }
 
-// Relay control elements
-const relay1Switch = document.getElementById('relay1');
-const relay2Switch = document.getElementById('relay2');
-const autoModeSwitch = document.getElementById('autoMode');
+// Initially disable switches until MQTT is connected
+if (relay1Switch) relay1Switch.disabled = true;
+if (relay2Switch) relay2Switch.disabled = true;
+if (autoModeSwitch) autoModeSwitch.disabled = true;
 
 // Relay control functions - using MQTT
 function toggleRelay(relayId, state) {
+  // Check if Paho MQTT library is available
+  if (typeof Paho === 'undefined' || typeof Paho.Message === 'undefined') {
+    console.error("Paho MQTT library not available");
+    if (errorMessage) {
+      errorMessage.textContent = "MQTT library not loaded - check if paho-mqtt.js is accessible";
+      errorMessage.style.display = "block";
+    }
+    // Update switch back to previous state if it exists
+    const switchElement = relayId === 1 ? relay1Switch : relay2Switch;
+    if (switchElement) {
+      switchElement.checked = !state;
+      switchElement.disabled = true;
+      setTimeout(() => {
+        if (switchElement) switchElement.disabled = false;
+      }, 2000);
+    }
+    return;
+  }
+
   // First try MQTT
   if (mqttClient && mqttClient.isConnected()) {
     try {
@@ -323,98 +383,160 @@ function toggleRelay(relayId, state) {
         state: state
       };
       
-      const message = new Paho.MQTT.Message(JSON.stringify(payload));
+      const message = new Paho.Message(JSON.stringify(payload));
       message.destinationName = controlTopic;
       mqttClient.send(message);
       
       console.log(`Relay ${relayId} command sent via MQTT: ${state ? 'ON' : 'OFF'}`);
     } catch (error) {
       console.error(`Error sending MQTT command to relay ${relayId}:`, error);
-      // If MQTT fails, fallback to HTTP
-      toggleRelayHttp(relayId, state);
+      // In non-web-server mode, there is no fallback method
+      console.warn("No fallback available - ESP32 does not host a web server");
     }
   } else {
-    // Fallback to HTTP if MQTT is not connected
-    toggleRelayHttp(relayId, state);
-  }
-}
-
-// HTTP version of relay control as fallback
-async function toggleRelayHttp(relayId, state) {
-  try {
-    const response = await fetch(`${apiUrl}/control`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        relay: relayId,
-        state: state
-      })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    // In non-web-server mode, MQTT is required for relay control
+    console.warn("MQTT not connected - relay control unavailable");
+    if (statusText) statusText.textContent = "MQTT không kết nối - điều khiển relay không khả dụng";
+    if (errorMessage) {
+      errorMessage.textContent = "MQTT không kết nối - vui lòng kiểm tra kết nối MQTT";
+      errorMessage.style.display = "block";
     }
-    
-    const result = await response.json();
-    console.log(`Relay ${relayId} ${state ? 'ON' : 'OFF'} (HTTP):`, result);
-  } catch (error) {
-    console.error(`Error controlling relay ${relayId} via HTTP:`, error);
-    // Update switch back to previous state if there was an error
+    // Update switch back to previous state if it exists
     const switchElement = relayId === 1 ? relay1Switch : relay2Switch;
-    switchElement.checked = !state;
-  }
-}
-
-// Mode control function
-async function setMode(auto) {
-  try {
-    const response = await fetch(`${apiUrl}/mode`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        mode: auto ? 'auto' : 'manual'
-      })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (switchElement) {
+      switchElement.checked = !state;
+      // Disable the switch temporarily until MQTT is reconnected
+      switchElement.disabled = true;
+      setTimeout(() => {
+        if (switchElement) switchElement.disabled = false;
+      }, 2000); // Re-enable after 2 seconds
     }
-    
-    const result = await response.json();
-    console.log(`Mode set to ${auto ? 'auto' : 'manual'}:`, result);
-  } catch (error) {
-    console.error(`Error setting mode:`, error);
-    // Update switch back to previous state if there was an error
-    autoModeSwitch.checked = !auto;
   }
 }
 
-// Event listeners for relay switches
-relay1Switch.addEventListener('change', function() {
-  toggleRelay(1, this.checked);
-});
+// HTTP version of relay control as fallback - DISABLED since ESP32 no longer hosts web server
+async function toggleRelayHttp(relayId, state) {
+  console.warn('HTTP relay control is disabled. Using MQTT only.');
+  // In non-web-server mode, we only use MQTT
+  statusText.textContent = "HTTP fallback disabled, ensure MQTT is connected";
+  errorMessage.textContent = "Please ensure MQTT connection is active for relay control";
+  errorMessage.style.display = "block";
+}
 
-relay2Switch.addEventListener('change', function() {
-  toggleRelay(2, this.checked);
-});
-
-// Event listener for mode switch
-autoModeSwitch.addEventListener('change', function() {
-  setMode(this.checked);
-});
-
-// Manual refresh button event - allows manual refresh via HTTP
-refreshBtn.addEventListener("click", function() {
-  if (mqttClient && mqttClient.isConnected()) {
-    statusText.textContent = "MQTT đang hoạt động, không cần làm mới";
-  } else {
-    loadData();
+// Mode control function - MQTT only since ESP32 no longer hosts web server
+function setMode(auto) {
+  // Check if Paho MQTT library is available
+  if (typeof Paho === 'undefined' || typeof Paho.Message === 'undefined') {
+    console.error("Paho MQTT library not available");
+    if (errorMessage) {
+      errorMessage.textContent = "MQTT library not loaded - check if paho-mqtt.js is accessible";
+      errorMessage.style.display = "block";
+    }
+    // Update switch back to previous state if it exists
+    if (autoModeSwitch) {
+      autoModeSwitch.checked = !auto;
+      autoModeSwitch.disabled = true;
+      setTimeout(() => {
+        if (autoModeSwitch) autoModeSwitch.disabled = false;
+      }, 2000);
+    }
+    return;
   }
-});
+
+  // First try MQTT
+  if (mqttClient && mqttClient.isConnected()) {
+    try {
+      const controlTopic = "esp32/relays/control";
+      const payload = {
+        mode: auto ? 'auto' : 'manual'
+      };
+      
+      const message = new Paho.Message(JSON.stringify(payload));
+      message.destinationName = controlTopic;
+      mqttClient.send(message);
+      
+      console.log(`Mode set to ${auto ? 'auto' : 'manual'} via MQTT`);
+    } catch (error) {
+      console.error(`Error sending MQTT mode command:`, error);
+    }
+  } else {
+    console.warn("MQTT not connected, cannot set mode");
+    if (statusText) statusText.textContent = "MQTT không kết nối - không thể đặt chế độ";
+    if (errorMessage) {
+      errorMessage.textContent = "MQTT không kết nối - vui lòng kiểm tra kết nối MQTT";
+      errorMessage.style.display = "block";
+    }
+    // Update switch back to previous state if it exists
+    if (autoModeSwitch) {
+      autoModeSwitch.checked = !auto;
+      // Disable the switch temporarily until MQTT is reconnected
+      autoModeSwitch.disabled = true;
+      setTimeout(() => {
+        if (autoModeSwitch) autoModeSwitch.disabled = false;
+      }, 2000); // Re-enable after 2 seconds
+    }
+  }
+}
+
+// Event listeners for relay switches - with null checks
+if (relay1Switch) {
+  relay1Switch.addEventListener('change', function() {
+    toggleRelay(1, this.checked);
+  });
+} else {
+  console.error("Could not find relay1 switch element");
+}
+
+if (relay2Switch) {
+  relay2Switch.addEventListener('change', function() {
+    toggleRelay(2, this.checked);
+  });
+} else {
+  console.error("Could not find relay2 switch element");
+}
+
+// Event listener for mode switch - with null check
+if (autoModeSwitch) {
+  autoModeSwitch.addEventListener('change', function() {
+    setMode(this.checked);
+  });
+} else {
+  console.error("Could not find autoMode switch element");
+}
+
+// Manual refresh button event - in MQTT-only mode, this sends a status request
+if (refreshBtn) {
+  refreshBtn.addEventListener("click", function() {
+    // Check if Paho MQTT library is available
+    if (typeof Paho === 'undefined' || typeof Paho.Message === 'undefined') {
+      console.error("Paho MQTT library not available");
+      if (errorMessage) {
+        errorMessage.textContent = "MQTT library not loaded - check if paho-mqtt.js is accessible";
+        errorMessage.style.display = "block";
+      }
+      if (statusText) statusText.textContent = "Không thể gửi yêu cầu - MQTT library không khả dụng";
+      return;
+    }
+
+    if (mqttClient && mqttClient.isConnected()) {
+      // Request current status from ESP32 via MQTT
+      const statusTopic = "esp32/relays/control";
+      const payload = {
+        request: "status"
+      };
+      
+      const message = new Paho.Message(JSON.stringify(payload));
+      message.destinationName = statusTopic;
+      mqttClient.send(message);
+      
+      if (statusText) statusText.textContent = "Yêu cầu trạng thái được gửi qua MQTT";
+    } else {
+      if (statusText) statusText.textContent = "MQTT không kết nối - không thể làm mới dữ liệu";
+    }
+  });
+} else {
+  console.error("Could not find refresh button element");
+}
 
 // Initialize the chart and MQTT when the page loads
 document.addEventListener('DOMContentLoaded', function() {
@@ -435,15 +557,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Initialize MQTT connection
         initMqtt();
         
-        // Start HTTP polling as fallback after a delay
-        setTimeout(function() {
-          if (!mqttClient || !mqttClient.isConnected()) {
-            console.log("MQTT not connected after 5 seconds, starting HTTP polling");
-            startHttpPolling();
-          } else {
-            console.log("MQTT is connected, no need for HTTP polling");
-          }
-        }, 5000);
+        // In non-web-server mode, MQTT is the only communication method
+        // We don't start HTTP polling since ESP32 doesn't host a web server
+        console.log("MQTT is the only communication method - no HTTP fallback available");
       } else {
         console.log("Paho.Client not yet available, checking again in 500ms...");
         setTimeout(checkPahoAndInit, 500);

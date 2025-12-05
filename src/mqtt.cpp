@@ -3,6 +3,8 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include "relay.h"  // Include relay control functions
+#include "sensors.h" // Include for sensor data
+extern bool manualMode; // Declare the manual mode variable
 
 // MQTT settings for HiveMQ public broker
 const char* mqtt_server = "broker.hivemq.com";
@@ -12,6 +14,8 @@ const char* mqtt_password = "";
 const char* mqtt_client_id = "esp32_sensor_client";
 const char* mqtt_topic_sensor_data = "esp32/sensors/data";
 const char* mqtt_topic_relay_control = "esp32/relays/control";
+const char* mqtt_topic_relay_status = "esp32/relays/status";
+const char* mqtt_topic_system_status = "esp32/system/status";
 
 WiFiClient mqttEspClient;
 PubSubClient mqttClient(mqttEspClient);
@@ -39,6 +43,8 @@ void mqtt_connect() {
       // ... and resubscribe
       mqttClient.subscribe(mqtt_topic_relay_control);
       Serial.println("Subscribed to relay control topic: " + String(mqtt_topic_relay_control));
+      // Publish initial relay status
+      mqtt_publish_relay_status();
     } else {
       Serial.print("❌ failed, rc=");
       Serial.print(mqttClient.state());
@@ -79,6 +85,35 @@ bool mqtt_publish_sensor_data(float temp, float hum, int light, int air) {
   return result;
 }
 
+bool mqtt_publish_relay_status() {
+  if (!mqttClient.connected()) {
+    mqtt_connect();
+  }
+  
+  // Create JSON payload with relay states
+  DynamicJsonDocument doc(256);
+  doc["relay1_state"] = relay1_state();
+  doc["relay2_state"] = relay2_state();
+  doc["manual_mode"] = manualMode; // Send actual manual mode value (not inverted)
+  doc["timestamp"] = millis();
+  doc["device_id"] = WiFi.macAddress();
+
+  // Serialize JSON to string
+  String jsonString;
+  serializeJson(doc, jsonString);
+  
+  // Publish the relay status
+  bool result = mqttClient.publish(mqtt_topic_relay_status, jsonString.c_str(), true); // retain message
+  
+  if (result) {
+    Serial.println("✅ Relay status published to MQTT: " + jsonString);
+  } else {
+    Serial.println("❌ Failed to publish relay status to MQTT");
+  }
+  
+  return result;
+}
+
 void mqtt_loop() {
   if (!mqttClient.connected()) {
     mqtt_connect();
@@ -99,8 +134,10 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   
   Serial.println(message);
 
+  String topicStr = String(topic);
+  
   // Handle relay control messages
-  if (String(topic) == mqtt_topic_relay_control) {
+  if (topicStr == mqtt_topic_relay_control) {
     // Parse the JSON command
     DynamicJsonDocument doc(256);
     DeserializationError error = deserializeJson(doc, message);
@@ -133,6 +170,26 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
           Serial.println("Relay 2 turned OFF via MQTT");
         }
       }
+      
+      // Publish updated relay status after processing the command
+      mqtt_publish_relay_status();
+    }
+    // Handle mode control commands
+    else if (doc.containsKey("mode")) {
+      String mode = doc["mode"];
+      if (mode == "auto" || mode == "1" || mode == "true") {
+        manualMode = false;
+        Serial.println("Switched to AUTO mode via MQTT");
+      } else {
+        manualMode = true;
+        Serial.println("Switched to MANUAL mode via MQTT");
+      }
+      // Publish updated status after mode change
+      mqtt_publish_relay_status();
+    }
+    // Handle status request
+    else if (doc.containsKey("request") && doc["request"] == "status") {
+      mqtt_publish_relay_status();
     }
   }
 }
