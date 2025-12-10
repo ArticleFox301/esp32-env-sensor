@@ -23,4 +23,7 @@ void relay2_toggle();
 // Set both relays at once
 void relay_set_states(bool relay1_state, bool relay2_state);
 
+// Diagnostic function to test relay operation
+void relay_test_sequence();
+
 #endif

@@ -79,18 +79,20 @@ void loop() {
 
   // In AUTO mode, control relays based on sensor values
   if (!manualMode) {  // auto mode is active
-    // Example: Automatically control relays based on sensor readings
-    // This is just a sample implementation - you can customize this logic
-    if (aq > 70) {  // Poor air quality
-      relay1_on();  // Turn on exhaust fan
+    // New auto logic as requested:
+    // If temperature > 27°C, turn on relay 1
+    // If light < 40, turn on relay 2
+    // Otherwise, both relays turn off
+    if (t > 27.0) {
+      relay1_on();  // Turn on relay 1 if temperature > 27°C
     } else {
-      relay1_off(); // Turn off exhaust fan
+      relay1_off(); // Turn off relay 1 otherwise
     }
     
-    if (l < 20) {  // Low light
-      relay2_on();  // Turn on lights
+    if (l < 40) {  // If light level < 40
+      relay2_on();  // Turn on relay 2
     } else {
-      relay2_off(); // Turn off lights
+      relay2_off(); // Turn off relay 2 otherwise
     }
   }
 

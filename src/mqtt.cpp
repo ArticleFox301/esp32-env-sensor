@@ -4,6 +4,7 @@
 #include <ArduinoJson.h>
 #include "relay.h"  // Include relay control functions
 #include "sensors.h" // Include for sensor data
+#include "pins.h"    // Include pin definitions
 extern bool manualMode; // Declare the manual mode variable
 
 // MQTT settings for HiveMQ public broker
@@ -170,6 +171,17 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
           Serial.println("Relay 2 turned OFF via MQTT");
         }
       }
+      
+      // Flash LED to confirm command received
+      #ifdef LED_R
+      digitalWrite(LED_R, LOW);   // Turn on red LED (active LOW)
+      delay(200);
+      digitalWrite(LED_R, HIGH);  // Turn off red LED
+      delay(200);
+      digitalWrite(LED_R, LOW);   // Turn on red LED again
+      delay(200);
+      digitalWrite(LED_R, HIGH);  // Turn off red LED
+      #endif
       
       // Publish updated relay status after processing the command
       mqtt_publish_relay_status();
