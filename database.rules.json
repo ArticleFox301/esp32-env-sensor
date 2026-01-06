@@ -1,0 +1,121 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "rooms": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$roomId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "devices": {
+      "$deviceId": {
+        ".read": "auth != null && root.child('devices').child($deviceId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child($deviceId).child('roomId').val()).exists()",
+        ".write": "auth != null && root.child('devices').child($deviceId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child($deviceId).child('roomId').val()).exists()",
+        "last_sensor_data": {
+          ".read": "auth != null && root.child('devices').child($deviceId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child($deviceId).child('roomId').val()).exists()",
+          ".write": "auth == null && $deviceId == auth.token.name" // Allow ESP32 device to write its sensor data
+        },
+        "relays": {
+          ".read": "auth != null && root.child('devices').child($deviceId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child($deviceId).child('roomId').val()).exists()",
+          ".write": "auth != null && root.child('devices').child($deviceId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child($deviceId).child('roomId').val()).exists()",
+          "relay1_state": {
+            ".write": "auth != null && root.child('devices').child($deviceId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child($deviceId).child('roomId').val()).exists() || auth == null && $deviceId == auth.token.name" // ESP32 can update its own relay status
+          },
+          "relay2_state": {
+            ".write": "auth != null && root.child('devices').child($deviceId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child($deviceId).child('roomId').val()).exists() || auth == null && $deviceId == auth.token.name" // ESP32 can update its own relay status
+          }
+        },
+        "control_mode": {
+          ".read": "auth != null && root.child('devices').child($deviceId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child($deviceId).child('roomId').val()).exists()",
+          ".write": "auth != null && root.child('devices').child($deviceId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child($deviceId).child('roomId').val()).exists()" // Only authenticated users can change control mode
+        },
+        "automation": {
+          ".read": "auth != null && root.child('devices').child($deviceId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child($deviceId).child('roomId').val()).exists()",
+          ".write": "auth != null && root.child('devices').child($deviceId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child($deviceId).child('roomId').val()).exists()" // Only authenticated users can modify automation
+        },
+        "config": {
+          ".read": "auth != null && root.child('devices').child($deviceId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child($deviceId).child('roomId').val()).exists()",
+          ".write": "auth != null && root.child('devices').child($deviceId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child($deviceId).child('roomId').val()).exists() && root.child('users').child(auth.uid).child('role').val() == 'admin'" // Only admins can modify config
+        }
+      }
+    },
+    "sensors": {
+      "$sensorId": {
+        ".read": "auth != null && root.child('sensors').child($sensorId).child('deviceId').val() != null && root.child('devices').child(root.child('sensors').child($sensorId).child('deviceId').val()).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child(root.child('sensors').child($sensorId).child('deviceId').val()).child('roomId').val()).exists()",
+        ".write": "auth != null && root.child('sensors').child($sensorId).child('deviceId').val() != null && root.child('devices').child(root.child('sensors').child($sensorId).child('deviceId').val()).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child(root.child('sensors').child($sensorId).child('deviceId').val()).child('roomId').val()).exists()",
+        "lastReading": {
+          ".write": "auth == null && $sensorId == auth.token.name" // Only ESP32 device with matching name can write sensor data
+        }
+      }
+    },
+    "sensor_history": {
+      "$sensorId": {
+        "$date": {
+          "$timestamp": {
+            ".read": "auth != null && root.child('sensors').child($sensorId).child('deviceId').val() != null && root.child('devices').child(root.child('sensors').child($sensorId).child('deviceId').val()).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child(root.child('sensors').child($sensorId).child('deviceId').val()).child('roomId').val()).exists()",
+            ".write": "auth == null && $sensorId == auth.token.name" // Only ESP32 device can write historical data
+          }
+        }
+      }
+    },
+    "relays": {
+      "$relayId": {
+        ".read": "auth != null && root.child('relays').child($relayId).child('deviceId').val() != null && root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val()).exists()",
+        ".write": "auth != null && root.child('relays').child($relayId).child('deviceId').val() != null && root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val()).exists()",
+        "relay1": {
+          "state": {
+            ".write": "auth != null && root.child('relays').child($relayId).child('deviceId').val() != null && root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val()).exists() || auth == null && $relayId == auth.token.name" // ESP32 can update relay state
+          },
+          "targetState": {
+            ".write": "auth != null && root.child('relays').child($relayId).child('deviceId').val() != null && root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val()).exists()", // Only users can set target state
+            ".read": "auth != null && root.child('relays').child($relayId).child('deviceId').val() != null && root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val()).exists()"
+          }
+        },
+        "relay2": {
+          "state": {
+            ".write": "auth != null && root.child('relays').child($relayId).child('deviceId').val() != null && root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val()).exists() || auth == null && $relayId == auth.token.name" // ESP32 can update relay state
+          },
+          "targetState": {
+            ".write": "auth != null && root.child('relays').child($relayId).child('deviceId').val() != null && root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val()).exists()", // Only users can set target state
+            ".read": "auth != null && root.child('relays').child($relayId).child('deviceId').val() != null && root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('devices').child(root.child('relays').child($relayId).child('deviceId').val()).child('roomId').val()).exists()"
+          }
+        }
+      }
+    },
+    "control_logs": {
+      "$logId": {
+        ".read": "auth != null && root.child('control_logs').child($logId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('control_logs').child($logId).child('roomId').val()).exists()",
+        ".write": "auth != null && root.child('control_logs').child($logId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('control_logs').child($logId).child('roomId').val()).exists()"
+      }
+    },
+    "automations": {
+      "$automationId": {
+        ".read": "auth != null && root.child('automations').child($automationId).child('roomId').val() != null && root.child('users').child(auth.uid).child('rooms').child(root.child('automations').child($automationId).child('roomId').val()).exists()",
+        ".write": "auth != null && root.child('automations').child($automationId).child('roomId').val() != null && root.child('automations').child($automationId).child('createdBy').val() == auth.uid"
+      }
+    },
+    "system_config": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'admin'"
+    },
+    "system": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'admin'",
+      "config": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'admin'"
+      },
+      "automation": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'admin'"
+      }
+    }
+  }
+}

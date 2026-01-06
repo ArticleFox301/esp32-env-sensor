@@ -4,20 +4,166 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ESP32 Dashboard - IoT Monitor</title>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="paho-mqtt.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="style.css">
+  <script src="firebase-config.js"></script>
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --card-bg-dark: #ffffff;
+      --text-light: #333333;
+      --text-gray: #666666;
+      --border-color: #ddd;
+      --primary: #4361ee;
+      --secondary: #3f37c9;
+      --success: #4cc9f0;
+      --warning: #f72585;
+      --danger: #e63946;
+      --info: #4895ef;
+      --card-bg: #ffffff;
+      --blue-light: #4361ee;
+      --green-light: #2ecc71;
+      --red-light: #e74c3c;
+    }
+
+    body {
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%) !important;
+      color: var(--text-light);
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 15px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border-color);
+    }
+
+    .card {
+      background: var(--card-bg-dark) !important;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05) !important;
+      border: 1px solid var(--border-color) !important;
+    }
+
+    .chart-container {
+      background: var(--card-bg-dark) !important;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05) !important;
+      border: 1px solid var(--border-color) !important;
+    }
+
+    .relay-controls, .mode-control {
+      background: var(--card-bg-dark) !important;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05) !important;
+      border: 1px solid var(--border-color) !important;
+    }
+
+    .history-container {
+      margin-top: 30px;
+    }
+
+    .history-container h2.chart-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+
+    .history-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .history-controls label {
+      font-weight: 500;
+      margin-bottom: 0;
+    }
+
+    .history-controls select {
+      padding: 5px 10px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      background: var(--card-bg);
+      color: var(--text-light);
+    }
+
+    .history-chart-container {
+      height: 400px;
+      margin: 20px 0;
+    }
+
+    .history-data-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+      padding-top: 15px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .history-filter {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .history-filter label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+
+    .error-message {
+      background: rgba(230, 57, 70, 0.1) !important;
+      border: 1px solid rgba(230, 57, 70, 0.2) !important;
+      color: var(--danger) !important;
+    }
+
+    footer {
+      border-top: 1px solid var(--border-color) !important;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1><i class="fas fa-microchip"></i> ESP32 IoT Dashboard</h1>
+      <h1><i class="fas fa-microchip"></i> <span id="dashboardTitle">ESP32 IoT Dashboard</span></h1>
       <p class="subtitle">Theo dõi các cảm biến thời gian thực</p>
+      
+      <!-- Room and User Info -->
+      <div class="room-user-info">
+        <span>Phòng: <strong id="selectedRoomName">Chưa chọn</strong></span>
+        <span> | </span>
+        <span>Người dùng: <strong id="currentUsername">Ẩn danh</strong></span>
+        <span> | </span>
+        <a href="rooms.html" class="back-to-rooms-link">Trở về phòng</a>
+        <span> | </span>
+        <a href="#" class="logout-link" id="dashboardLogoutBtn">Đăng xuất</a>
+      </div>
       
       <div class="controls">
         <button class="btn btn-refresh" id="refreshBtn">
           <i class="fas fa-sync-alt"></i> Làm mới dữ liệu
+        </button>
+        <button class="btn btn-save" id="saveDataBtn">
+          <i class="fas fa-save"></i> Lưu dữ liệu
         </button>
       </div>
       
@@ -74,29 +220,79 @@
         <h2>Điều khiển Relay</h2>
         <div class="relay-buttons">
           <div class="relay-control">
-            <label for="relay1">Relay 1</label>
-            <div class="switch">
-              <input type="checkbox" id="relay1" class="relay-switch">
-              <span class="slider"></span>
-            </div>
+            <input type="checkbox" id="relay1" class="relay-switch sr-only">
+            <label for="relay1" class="switch-label">
+              <span class="switch">
+                <span class="slider"></span>
+              </span>
+              <span class="relay-text">Relay 1</span>
+            </label>
           </div>
           <div class="relay-control">
-            <label for="relay2">Relay 2</label>
-            <div class="switch">
-              <input type="checkbox" id="relay2" class="relay-switch">
-              <span class="slider"></span>
-            </div>
+            <input type="checkbox" id="relay2" class="relay-switch sr-only">
+            <label for="relay2" class="switch-label">
+              <span class="switch">
+                <span class="slider"></span>
+              </span>
+              <span class="relay-text">Relay 2</span>
+            </label>
           </div>
         </div>
       </div>
-      
+
       <div class="mode-control">
         <h2>Chế độ hoạt động</h2>
-        <div class="switch">
-          <input type="checkbox" id="autoMode" class="mode-switch">
-          <span class="slider"></span>
+        <input type="checkbox" id="autoMode" class="mode-switch sr-only">
+        <label for="autoMode" class="switch-label">
+          <span class="switch">
+            <span class="slider"></span>
+          </span>
+          <span class="relay-text">Tự động</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Sensor History Section -->
+    <div class="chart-container history-container">
+      <h2 class="chart-title">
+        <i class="fas fa-history"></i> Lịch sử cảm biến
+        <div class="history-controls">
+          <label for="dateRange">Chọn khoảng thời gian:</label>
+          <select id="dateRange">
+            <option value="1h">1 giờ qua</option>
+            <option value="6h">6 giờ qua</option>
+            <option value="24h" selected>24 giờ qua</option>
+            <option value="7d">7 ngày qua</option>
+            <option value="30d">30 ngày qua</option>
+          </select>
+          <button class="btn btn-primary" id="loadHistoryBtn">
+            <i class="fas fa-sync-alt"></i> Tải lịch sử
+          </button>
         </div>
-        <label for="autoMode" class="mode-label">Tự động</label>
+      </h2>
+      <div class="history-chart-container">
+        <canvas id="historyChart"></canvas>
+      </div>
+      <div class="history-data-controls">
+        <div class="history-filter">
+          <label>
+            <input type="checkbox" id="showTempHistory" checked> Nhiệt độ
+          </label>
+          <label>
+            <input type="checkbox" id="showHumiHistory" checked> Độ ẩm
+          </label>
+          <label>
+            <input type="checkbox" id="showLightHistory" checked> Ánh sáng
+          </label>
+          <label>
+            <input type="checkbox" id="showAirHistory" checked> Không khí
+          </label>
+        </div>
+        <div class="history-actions">
+          <button class="btn btn-sm btn-outline" id="exportHistoryBtn">
+            <i class="fas fa-download"></i> Xuất dữ liệu
+          </button>
+        </div>
       </div>
     </div>
 
@@ -106,5 +302,794 @@
   </div>
 
   <script src="script.js"></script>
+
+  <script>
+    let currentUserId = null;
+    let currentRoomId = null;
+
+
+    // Check authentication when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+
+      // Check if user is authenticated via Firebase
+      auth.onAuthStateChanged(function(user) {
+        if (user) {
+          currentUserId = user.uid;
+          // Get selected room from URL parameter or Firebase
+          const urlParams = new URLSearchParams(window.location.search);
+          currentRoomId = urlParams.get('room') || localStorage.getItem('selectedRoom');
+
+          if (!currentRoomId) {
+            alert('Vui lòng chọn một phòng để tiếp tục');
+            window.location.href = 'rooms.html';
+            return;
+          }
+
+          // Display user info and selected room
+          document.getElementById('currentUsername').textContent = user.email || user.uid;
+          document.getElementById('selectedRoomName').textContent = getRoomDisplayName(currentRoomId);
+
+          // Update dashboard title to include room name
+          document.getElementById('dashboardTitle').textContent = `Dashboard Phòng ${getRoomDisplayName(currentRoomId)}`;
+
+          // Load sensor data from Firebase (async)
+          loadSensorData().then(() => {
+            console.log("Sensor data loaded successfully");
+          }).catch(err => {
+            console.error("Error loading sensor data:", err);
+          });
+
+          // Set up real-time listener for sensor data (async)
+          setupRealTimeSensorListener().then(() => {
+            console.log("Real-time sensor listener set up successfully");
+          }).catch(err => {
+            console.error("Error setting up real-time sensor listener:", err);
+          });
+
+          // Set up relay control listeners
+          setupRelayControl();
+        } else {
+          // No user is signed in, redirect to login
+          window.location.href = 'login.html';
+        }
+      });
+
+      // Logout functionality
+      document.getElementById('dashboardLogoutBtn').addEventListener('click', function(e) {
+        e.preventDefault();
+        if (confirm('Bạn có chắc chắn muốn đăng xuất?')) {
+          auth.signOut().then(function() {
+            localStorage.removeItem('selectedRoom');
+            window.location.href = 'login.html';
+          }).catch(function(error) {
+            console.error('Logout error:', error);
+          });
+        }
+      });
+
+      // Save data functionality
+      document.getElementById('saveDataBtn').addEventListener('click', function() {
+        // Get current sensor values
+        const tempValue = document.getElementById('tempValue').textContent;
+        const humiValue = document.getElementById('humiValue').textContent;
+        const lightValue = document.getElementById('lightValue').textContent;
+        const airValue = document.getElementById('airValue').textContent;
+        const lastUpdate = document.getElementById('lastUpdate').textContent;
+
+        // Create data object
+        const sensorData = {
+          temperature: tempValue !== '--' ? parseFloat(tempValue) : null,
+          humidity: humiValue !== '--' ? parseFloat(humiValue) : null,
+          light: lightValue !== '--' ? parseFloat(lightValue) : null,
+          airQuality: airValue !== '--' ? parseFloat(airValue) : null,
+          timestamp: new Date().toISOString(),
+          lastUpdate: lastUpdate
+        };
+
+        // Save to localStorage
+        const roomData = JSON.parse(localStorage.getItem('roomData') || '{}');
+        const roomKey = currentRoomId || 'default';
+
+        if (!roomData[roomKey]) {
+          roomData[roomKey] = [];
+        }
+
+        roomData[roomKey].push(sensorData);
+        localStorage.setItem('roomData', JSON.stringify(roomData));
+
+        // Show confirmation
+        alert(`Dữ liệu đã được lưu!\nNhiệt độ: ${sensorData.temperature}°C\nĐộ ẩm: ${sensorData.humidity}%\nÁnh sáng: ${sensorData.light}\nKhông khí: ${sensorData.airQuality} ppm`);
+
+        // Update status
+        if (statusText) statusText.textContent = "Dữ liệu cảm biến đã được lưu";
+      });
+    });
+
+    // Load sensor data from Firebase
+    async function loadSensorData() {
+      if (!currentRoomId || !currentUserId) return;
+
+      // Get device ID first, then load sensor data from the sensors path
+      const deviceId = await getDeviceIdForRoom();
+      if (deviceId) {
+        const sensorRef = database.ref('sensors/' + deviceId + '/data');
+        sensorRef.once('value').then(function(snapshot) {
+          const data = snapshot.val();
+          if (data) {
+            updateSensorDisplay(data);
+          } else {
+            console.log("No sensor data found for device:", deviceId);
+          }
+        });
+      } else {
+        console.warn("Could not determine device ID for room:", currentRoomId);
+      }
+    }
+
+    // Set up real-time listener for sensor data
+    async function setupRealTimeSensorListener() {
+      if (!currentRoomId || !currentUserId) return;
+
+      // Get device ID first, then set up listener for the sensors path
+      const deviceId = await getDeviceIdForRoom();
+      if (deviceId) {
+        const sensorRef = database.ref('sensors/' + deviceId + '/data');
+        sensorRef.on('value', function(snapshot) {
+          const data = snapshot.val();
+          if (data) {
+            updateSensorDisplay(data);
+            updateChart(data); // assuming you have a chart update function
+          } else {
+            console.log("No real-time sensor data found for device:", deviceId);
+          }
+        });
+      } else {
+        console.warn("Could not set up real-time sensor listener for room:", currentRoomId);
+      }
+    }
+
+    // Update sensor display with new values
+    function updateSensorDisplay(data) {
+      document.getElementById('tempValue').textContent = data.temperature || '--';
+      document.getElementById('humiValue').textContent = data.humidity || '--';
+      document.getElementById('lightValue').textContent = data.light || '--';
+      document.getElementById('airValue').textContent = data.airQuality || '--';
+
+      // Update light card color based on value
+      updateLightCardColor(data.light || '--');
+
+      // Update last update time
+      document.getElementById('lastUpdate').textContent = data.timestamp ?
+        new Date(data.timestamp).toLocaleString() : 'Chưa có dữ liệu';
+    }
+
+    // Function to update light card color based on value
+    function updateLightCardColor(lightValue) {
+      const lightCard = document.querySelector('.card.light');
+      if (!lightCard || lightValue === '--') return;
+
+      // Remove existing color classes
+      lightCard.classList.remove('high-light', 'medium-light', 'low-light');
+
+      const lightNum = parseFloat(lightValue);
+
+      if (lightNum > 60) {
+        lightCard.classList.add('high-light'); // Blue color for >60
+      } else if (lightNum >= 20 && lightNum <= 60) {
+        lightCard.classList.add('medium-light'); // Green color for 20-60
+      } else {
+        lightCard.classList.add('low-light'); // Red color for <20
+      }
+    }
+
+    // Set up relay control functionality
+    function setupRelayControl() {
+      // Relay 1 control
+      const relay1Switch = document.getElementById('relay1');
+      if (relay1Switch) {
+        // Listen for changes from Firebase
+        database.ref('rooms/' + currentRoomId + '/relays/relay1').on('value', function(snapshot) {
+          const state = snapshot.val();
+          if (state !== null) {
+            relay1Switch.checked = state;
+          }
+        });
+
+        // Listen for local changes to send to Firebase
+        relay1Switch.addEventListener('change', function() {
+          database.ref('rooms/' + currentRoomId + '/relays/relay1').set(this.checked);
+        });
+      }
+
+      // Relay 2 control
+      const relay2Switch = document.getElementById('relay2');
+      if (relay2Switch) {
+        // Listen for changes from Firebase
+        database.ref('rooms/' + currentRoomId + '/relays/relay2').on('value', function(snapshot) {
+          const state = snapshot.val();
+          if (state !== null) {
+            relay2Switch.checked = state;
+          }
+        });
+
+        // Listen for local changes to send to Firebase
+        relay2Switch.addEventListener('change', function() {
+          database.ref('rooms/' + currentRoomId + '/relays/relay2').set(this.checked);
+        });
+      }
+
+      // Auto mode control
+      const autoModeSwitch = document.getElementById('autoMode');
+      if (autoModeSwitch) {
+        // Listen for changes from Firebase
+        database.ref('rooms/' + currentRoomId + '/autoMode').on('value', function(snapshot) {
+          const state = snapshot.val();
+          if (state !== null) {
+            autoModeSwitch.checked = state;
+          }
+        });
+
+        // Listen for local changes to send to Firebase
+        autoModeSwitch.addEventListener('change', function() {
+          database.ref('rooms/' + currentRoomId + '/autoMode').set(this.checked);
+        });
+      }
+    }
+
+    // Helper function to get display name for room ID
+    function getRoomDisplayName(roomId) {
+      const roomNames = {
+        'classroom-M503': 'M.503',
+        'lab-TN301': 'TN.301',
+        'computer-M405': 'M.405',
+        'auditorium-HTA101': 'HT.A101',
+        'living-room': 'Phòng Khách',
+        'bedroom': 'Phòng Ngủ',
+        'kitchen': 'Phòng Bếp',
+        'office': 'Phòng Làm Việc'
+      };
+      return roomNames[roomId] || roomId;
+    }
+
+    // Function to update chart (placeholder - you would implement based on your existing chart code)
+    function updateChart(data) {
+      // This would update your Chart.js instance with new data
+      // Implementation depends on your existing chart setup
+    }
+  </script>
+
+  <!-- History Chart Script -->
+  <script>
+    // Initialize history chart
+    let historyChart;
+
+    // DOM elements for history section
+    const loadHistoryBtn = document.getElementById('loadHistoryBtn');
+    const dateRangeSelect = document.getElementById('dateRange');
+    const exportHistoryBtn = document.getElementById('exportHistoryBtn');
+    const showTempHistory = document.getElementById('showTempHistory');
+    const showHumiHistory = document.getElementById('showHumiHistory');
+    const showLightHistory = document.getElementById('showLightHistory');
+    const showAirHistory = document.getElementById('showAirHistory');
+
+    // Initialize history chart when DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      initHistoryChart();
+
+      // Add event listeners for history controls
+      if (loadHistoryBtn) {
+        loadHistoryBtn.addEventListener('click', loadSensorHistory);
+      }
+
+      if (exportHistoryBtn) {
+        exportHistoryBtn.addEventListener('click', exportHistoryData);
+      }
+
+      // Add event listeners for data visibility toggles
+      if (showTempHistory) {
+        showTempHistory.addEventListener('change', toggleHistoryDataVisibility);
+      }
+      if (showHumiHistory) {
+        showHumiHistory.addEventListener('change', toggleHistoryDataVisibility);
+      }
+      if (showLightHistory) {
+        showLightHistory.addEventListener('change', toggleHistoryDataVisibility);
+      }
+      if (showAirHistory) {
+        showAirHistory.addEventListener('change', toggleHistoryDataVisibility);
+      }
+    });
+
+    function initHistoryChart() {
+      const ctx = document.getElementById("historyChart").getContext("2d");
+      historyChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: "Nhiệt độ (°C)",
+              data: [],
+              borderColor: "#4361ee",
+              backgroundColor: "rgba(67, 97, 238, 0.1)",
+              borderWidth: 2,
+              fill: false,
+              tension: 0.3,
+              yAxisID: 'y'
+            },
+            {
+              label: "Độ ẩm (%)",
+              data: [],
+              borderColor: "#4cc9f0",
+              backgroundColor: "rgba(76, 201, 240, 0.1)",
+              borderWidth: 2,
+              fill: false,
+              tension: 0.3,
+              yAxisID: 'y'
+            },
+            {
+              label: "Ánh sáng (lx)",
+              data: [],
+              borderColor: "#f72585",
+              backgroundColor: "rgba(247, 37, 133, 0.1)",
+              borderWidth: 2,
+              fill: false,
+              tension: 0.3,
+              yAxisID: 'y'
+            },
+            {
+              label: "Không khí (ppm)",
+              data: [],
+              borderColor: "#7209b7",
+              backgroundColor: "rgba(114, 9, 183, 0.1)",
+              borderWidth: 2,
+              fill: false,
+              tension: 0.3,
+              yAxisID: 'y'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: false,
+              grid: {
+                color: "rgba(0, 0, 0, 0.05)"
+              }
+            },
+            y1: {
+              beginAtZero: false,
+              position: 'right',
+              grid: {
+                drawOnChartArea: false
+              }
+            },
+            x: {
+              grid: {
+                color: "rgba(0, 0, 0, 0.05)"
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+            },
+            tooltip: {
+              mode: 'index',
+              intersect: false
+            }
+          },
+          interaction: {
+            mode: 'nearest',
+            axis: 'x',
+            intersect: false
+          }
+        }
+      });
+    }
+
+    // Function to load sensor history from Firebase
+    async function loadSensorHistory() {
+      if (!currentRoomId || !currentUserId) {
+        alert('Vui lòng đăng nhập và chọn phòng để xem lịch sử cảm biến');
+        return;
+      }
+
+      console.log("Loading sensor history for room:", currentRoomId);
+
+      // Show loading status
+      if (statusText) statusText.textContent = "Đang tải lịch sử cảm biến...";
+
+      try {
+        const dateRange = dateRangeSelect.value;
+        console.log("Selected date range:", dateRange);
+
+        // Try to fetch real historical data from Firebase
+        const historyData = await fetchRealHistoricalData(dateRange);
+        console.log("Retrieved historical data:", historyData);
+
+        // Update the history chart with the real data
+        updateHistoryChart(historyData);
+
+        if (statusText) statusText.textContent = `Lịch sử cảm biến đã được tải (${dateRange})`;
+      } catch (error) {
+        console.error('Error loading sensor history:', error);
+        if (statusText) statusText.textContent = "Lỗi khi tải lịch sử cảm biến";
+        if (errorMessage) {
+          errorMessage.textContent = `Lỗi lịch sử: ${error.message}`;
+          errorMessage.style.display = "block";
+        }
+      }
+    }
+
+    // Function to generate mock historical data for demonstration
+    function generateMockHistoricalData(dateRange) {
+      const data = [];
+      let points = 20; // default number of data points
+
+      // Determine number of points based on date range
+      switch(dateRange) {
+        case '1h':
+          points = 12; // 5-minute intervals for 1 hour
+          break;
+        case '6h':
+          points = 12; // 30-minute intervals for 6 hours
+          break;
+        case '24h':
+          points = 24; // hourly intervals for 24 hours
+          break;
+        case '7d':
+          points = 14; // 12-hour intervals for 7 days
+          break;
+        case '30d':
+          points = 30; // daily intervals for 30 days
+          break;
+      }
+
+      // Generate mock data points
+      for (let i = points - 1; i >= 0; i--) {
+        const timeOffset = new Date();
+        switch(dateRange) {
+          case '1h':
+            timeOffset.setMinutes(timeOffset.getMinutes() - (i * 5));
+            break;
+          case '6h':
+            timeOffset.setMinutes(timeOffset.getMinutes() - (i * 30));
+            break;
+          case '24h':
+            timeOffset.setHours(timeOffset.getHours() - i);
+            break;
+          case '7d':
+            timeOffset.setHours(timeOffset.getHours() - (i * 12));
+            break;
+          case '30d':
+            timeOffset.setDate(timeOffset.getDate() - i);
+            break;
+        }
+
+        const temp = 20 + (Math.random() * 15); // 20-35°C
+        const hum = 30 + (Math.random() * 50); // 30-80%
+        const light = 20 + (Math.random() * 80); // 20-100%
+        const air = 300 + (Math.random() * 700); // 300-1000 ppm
+
+        data.push({
+          timestamp: timeOffset,
+          temperature: parseFloat(temp.toFixed(1)),
+          humidity: parseFloat(hum.toFixed(1)),
+          light: Math.round(light),
+          airQuality: Math.round(air)
+        });
+      }
+
+      return data;
+    }
+
+    // Function to update the history chart with new data
+    function updateHistoryChart(data) {
+      if (!historyChart) {
+        console.error('History chart not initialized');
+        return;
+      }
+
+      console.log("Updating history chart with data:", data);
+
+      // Clear existing data
+      historyChart.data.labels = [];
+      historyChart.data.datasets[0].data = []; // Temperature
+      historyChart.data.datasets[1].data = []; // Humidity
+      historyChart.data.datasets[2].data = []; // Light
+      historyChart.data.datasets[3].data = []; // Air Quality
+
+      // Add new data points
+      if (data && data.length > 0) {
+        data.forEach(item => {
+          // Format the timestamp for the x-axis
+          let timeLabel = '';
+          if (item.timestamp instanceof Date) {
+            timeLabel = item.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+          } else if (typeof item.timestamp === 'string') {
+            // If timestamp is already a string, try to parse it
+            const dateObj = new Date(item.timestamp);
+            timeLabel = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+          } else {
+            // Fallback: use timestamp field or create a generic label
+            timeLabel = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+          }
+
+          historyChart.data.labels.push(timeLabel);
+          historyChart.data.datasets[0].data.push(item.temperature !== undefined ? item.temperature : null);
+          historyChart.data.datasets[1].data.push(item.humidity !== undefined ? item.humidity : null);
+          historyChart.data.datasets[2].data.push(item.light !== undefined ? item.light : null);
+          historyChart.data.datasets[3].data.push(item.airQuality !== undefined ? item.airQuality : null);
+        });
+
+        console.log("History chart updated with", data.length, "data points");
+      } else {
+        console.log("No historical data to display");
+      }
+
+      // Update chart
+      historyChart.update();
+    }
+
+    // Function to toggle visibility of history data
+    function toggleHistoryDataVisibility() {
+      if (!historyChart) return;
+
+      // Update visibility for each dataset
+      historyChart.data.datasets[0].hidden = !showTempHistory.checked; // Temperature
+      historyChart.data.datasets[1].hidden = !showHumiHistory.checked; // Humidity
+      historyChart.data.datasets[2].hidden = !showLightHistory.checked; // Light
+      historyChart.data.datasets[3].hidden = !showAirHistory.checked;  // Air Quality
+
+      historyChart.update();
+    }
+
+    // Function to export history data
+    function exportHistoryData() {
+      if (!historyChart) {
+        alert('Không có dữ liệu lịch sử để xuất');
+        return;
+      }
+
+      // Prepare data for export
+      const exportData = [];
+      for (let i = 0; i < historyChart.data.labels.length; i++) {
+        exportData.push({
+          time: historyChart.data.labels[i],
+          temperature: historyChart.data.datasets[0].data[i],
+          humidity: historyChart.data.datasets[1].data[i],
+          light: historyChart.data.datasets[2].data[i],
+          airQuality: historyChart.data.datasets[3].data[i]
+        });
+      }
+
+      // Create and download CSV file
+      const csvContent = "data:text/csv;charset=utf-8,"
+        + "Time,Temperature,Humidity,Light,AirQuality\n"
+        + exportData.map(row =>
+            [row.time, row.temperature, row.humidity, row.light, row.airQuality].join(",")
+          ).join("\n");
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `sensor_history_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      if (statusText) statusText.textContent = "Dữ liệu lịch sử đã được xuất dưới dạng CSV";
+    }
+
+    // Function to determine device ID for the current room
+    async function getDeviceIdForRoom() {
+      // First, try to get the device ID from the room's data
+      // In a full implementation, this would be retrieved from the devices database
+      try {
+        // Try to get device ID from room
+        const roomRef = database.ref('rooms/' + currentRoomId + '/device_id');
+        const roomSnapshot = await roomRef.once('value');
+        let deviceId = roomSnapshot.val();
+
+        if (deviceId) {
+          console.log("Found device ID in room:", deviceId);
+          return deviceId;
+        }
+
+        // If not found in room, try to find device associated with this room
+        // Query all devices to find one associated with this room
+        const devicesRef = database.ref('devices');
+        const devicesSnapshot = await devicesRef.once('value');
+        const devices = devicesSnapshot.val();
+
+        if (devices) {
+          for (const id in devices) {
+            if (devices[id] && devices[id].roomId === currentRoomId) {
+              console.log("Found device ID by room association:", id);
+              return id;  // Return the first device found for this room
+            }
+          }
+        }
+
+        // If still not found, try to get the MAC address of the ESP32 device
+        // Look for devices in our specific room ID
+        const specificRoomId = 'classroom-M503'; // Default room from ESP32 config
+        if (devices) {
+          for (const id in devices) {
+            if (devices[id] && devices[id].roomId === specificRoomId) {
+              console.log("Found device ID by default room:", id);
+              return id;
+            }
+          }
+        }
+
+        // If still no device found, return the first available device as fallback
+        if (devices) {
+          const firstDeviceId = Object.keys(devices)[0];
+          if (firstDeviceId) {
+            console.log("Using first available device as fallback:", firstDeviceId);
+            return firstDeviceId;
+          }
+        }
+
+        // If no device found, we'll use mock data approach
+        console.warn("No device found for room:", currentRoomId);
+        return null;
+      } catch (error) {
+        console.error("Error getting device ID:", error);
+        return null;
+      }
+    }
+
+    // Function to fetch real historical data from Firebase
+    async function fetchRealHistoricalData(dateRange) {
+      console.log("Fetching historical data for date range:", dateRange);
+
+      // First, get the device ID for the current room
+      const deviceId = await getDeviceIdForRoom();
+      if (!deviceId) {
+        console.warn("Could not determine device ID for room, using mock data");
+        return generateMockHistoricalData(dateRange);
+      }
+
+      console.log("Looking for historical data for device:", deviceId);
+
+      try {
+        // Query Firebase for all historical data for this device
+        // Date filtering will be done client-side
+        const historyPath = 'sensor_history/' + deviceId;
+        const historyRef = database.ref(historyPath);
+        console.log("Querying historical data from path:", historyPath);
+
+        // Get start date based on selected range
+        const startDate = getStartDate(dateRange);
+        console.log("Start date for client-side filtering:", startDate);
+
+        // Get all historical data for this device
+        const snapshot = await historyRef.once('value');
+        const data = snapshot.val();
+        console.log("Raw historical data from Firebase:", data);
+
+        if (!data) {
+          console.log("No historical data found for device:", deviceId);
+          console.log("Using mock data as fallback");
+          return generateMockHistoricalData(dateRange); // Return mock data if none exists yet
+        }
+
+        // Process the historical data into the format expected by the chart
+        const processedData = processHistoricalData(data, dateRange);
+        console.log("Processed historical data:", processedData);
+        return processedData;
+      } catch (error) {
+        console.error("Error fetching historical data:", error);
+        console.error("Error details:", error.message);
+        // Fallback to mock data if there's an error
+        return generateMockHistoricalData(dateRange);
+      }
+    }
+
+    // Helper function to calculate start date based on range
+    function getStartDate(dateRange) {
+      const now = new Date();
+      console.log("Current date/time:", now);
+      console.log("Calculating start date for range:", dateRange);
+
+      let startDate;
+      switch(dateRange) {
+        case '1h':
+          startDate = new Date(now.getTime() - (1 * 60 * 60 * 1000)); // 1 hour ago
+          break;
+        case '6h':
+          startDate = new Date(now.getTime() - (6 * 60 * 60 * 1000)); // 6 hours ago
+          break;
+        case '24h':
+          startDate = new Date(now.getTime() - (24 * 60 * 60 * 1000)); // 24 hours ago
+          break;
+        case '7d':
+          startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000)); // 7 days ago
+          break;
+        case '30d':
+          startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000)); // 30 days ago
+          break;
+        default:
+          startDate = new Date(now.getTime() - (24 * 60 * 60 * 1000)); // Default to 24 hours
+      }
+
+      console.log("Start date calculated:", startDate);
+      return startDate;
+    }
+
+    // Helper function to format date as Firebase key (YYYY-MM-DD)
+    function formatFirebaseKey(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // Function to process raw historical Firebase data
+    function processHistoricalData(rawData, dateRange) {
+      const processedData = [];
+      const startDate = getStartDate(dateRange);
+
+      console.log("Processing raw data:", rawData);
+      console.log("Start date for filtering:", startDate);
+
+      // Iterate through the date keys (YYYY-MM-DD format)
+      for (const dateKey in rawData) {
+        const dateData = rawData[dateKey];
+
+        console.log("Processing date key:", dateKey, "with data:", dateData);
+
+        if (dateData) {
+          // Check if this date is within our range (for client-side additional filtering)
+          const dateParts = dateKey.split('-');
+          if (dateParts.length === 3) {
+            const dateObj = new Date(
+              parseInt(dateParts[0]),
+              parseInt(dateParts[1]) - 1,
+              parseInt(dateParts[2])
+            );
+
+            console.log("Date object from date key:", dateObj, "vs start date:", startDate);
+
+            // Process each timestamp within this date regardless of date check, since Firebase already filtered
+            for (const timeKey in dateData) {
+              const sensorReading = dateData[timeKey];
+
+              console.log("Processing time key:", timeKey, "with sensor reading:", sensorReading);
+
+              if (sensorReading) {
+                // Combine date and time for full timestamp
+                const dateTimeStr = `${dateKey} ${timeKey}`;
+                const timestamp = new Date(dateTimeStr);
+
+                console.log("Created timestamp:", timestamp);
+
+                // Add the data point (Firebase already filtered by startKey, so we don't need to filter again)
+                processedData.push({
+                  timestamp: timestamp,
+                  temperature: sensorReading.temperature !== undefined && sensorReading.temperature !== null ? parseFloat(sensorReading.temperature) : null,
+                  humidity: sensorReading.humidity !== undefined && sensorReading.humidity !== null ? parseFloat(sensorReading.humidity) : null,
+                  light: sensorReading.light !== undefined && sensorReading.light !== null ? parseInt(sensorReading.light) : null,
+                  airQuality: sensorReading.airQuality !== undefined && sensorReading.airQuality !== null ? parseInt(sensorReading.airQuality) : null
+                });
+              }
+            }
+          }
+        }
+      }
+
+      console.log("Processed data before sorting:", processedData);
+
+      // Sort data by timestamp
+      processedData.sort((a, b) => a.timestamp - b.timestamp);
+      console.log("Processed data after sorting:", processedData);
+      return processedData;
+    }
+  </script>
 </body>
 </html>

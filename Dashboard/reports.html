@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Báo Cáo - Bảng Điều Khiển IoT</title>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%) !important;
+            color: #333;
+        }
+
+        /* Navigation Bar Styles */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            border: 1px solid #ddd;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #673ab7;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 25px;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: #666;
+            font-weight: 500;
+            padding: 8px 15px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-links a:hover, .nav-links a.active {
+            background: #673ab7;
+            color: white;
+        }
+
+        .user-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid #ddd;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            color: #673ab7;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-info {
+            text-align: right;
+            color: #666;
+            padding: 10px 0;
+        }
+
+        .status-info p#statusText {
+            margin: 0;
+            font-weight: 500;
+            color: #673ab7;
+            font-size: 0.95rem;
+        }
+
+        .reports-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 15px;
+        }
+
+        .report-header {
+            margin-bottom: 25px;
+        }
+
+        .report-header h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .report-header p {
+            color: #666;
+        }
+
+        .filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-group label {
+            font-weight: 500;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .filter-group select, .filter-group input {
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+        }
+
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .chart-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid #eee;
+            overflow: hidden;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .chart-header h3 {
+            margin: 0;
+            color: #333;
+            font-size: 1.2rem;
+        }
+
+        .chart-container {
+            height: 200px;
+            position: relative;
+            width: 100%;
+        }
+
+        .chart-container canvas {
+            height: 100% !important;
+            width: 100% !important;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .summary-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid #eee;
+        }
+
+        .summary-icon {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            color: #673ab7;
+        }
+
+        .summary-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #673ab7;
+            margin-bottom: 5px;
+        }
+
+        .summary-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        /* Loading Animation */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(103, 58, 183, 0.2);
+            border-top: 5px solid #673ab7;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        .loading-text {
+            font-size: 18px;
+            color: #673ab7;
+            font-weight: 500;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            min-width: 300px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transform: translateX(150%);
+            transition: transform 0.3s ease-out;
+            animation: slideIn 0.3s forwards;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.success {
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+        }
+
+        .toast.error {
+            background: linear-gradient(135deg, #F44336, #C62828);
+        }
+
+        .toast.info {
+            background: linear-gradient(135deg, #2196F3, #1565C0);
+        }
+
+        .toast.warning {
+            background: linear-gradient(135deg, #FF9800, #EF6C00);
+        }
+
+        .toast-icon {
+            font-size: 1.2rem;
+        }
+
+        @keyframes slideIn {
+            to { transform: translateX(0); }
+        }
+
+        @media (max-width: 768px) {
+            .navbar {
+                flex-direction: column;
+                gap: 15px;
+                padding: 15px;
+            }
+            
+            .nav-links {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .nav-links a {
+                padding: 6px 12px;
+                font-size: 0.9rem;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .status-info {
+                text-align: center;
+            }
+
+            .charts-container {
+                grid-template-columns: 1fr;
+            }
+
+            .chart-card {
+                min-width: 90%;
+                margin: 0 auto;
+            }
+
+            .chart-container {
+                height: 200px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .navbar {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .filters {
+                flex-direction: column;
+            }
+            
+            .chart-container {
+                height: 160px;
+            }
+
+            .chart-header h3 {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <div class="navbar">
+        <div class="logo">
+            <i class="fas fa-chart-line"></i>
+            <span>IoT Dashboard</span>
+        </div>
+        <div class="nav-links">
+            <a href="rooms.html">Phòng</a>
+            <a href="reports.html" class="active">Báo Cáo</a>
+        </div>
+        <div class="user-actions">
+            <span>Xin chào, <span id="navUsername">Người dùng</span></span>
+            <a href="#" class="logout-btn" id="navLogoutBtn"><i class="fas fa-sign-out-alt"></i> Đăng xuất</a>
+        </div>
+    </div>
+
+    <div class="header">
+        <h1><i class="fas fa-chart-bar"></i> Báo Cáo & Thống Kê</h1>
+        <div class="status-info">
+            <p id="statusText">Đang kết nối tới MQTT...</p>
+        </div>
+    </div>
+
+    <div class="reports-container">
+        <div class="report-header">
+            <h2>Thống Kê Thiết Bị IoT</h2>
+            <p>Dữ liệu cảm biến theo thời gian thực và lịch sử</p>
+        </div>
+
+        <div class="filters">
+            <div class="filter-group">
+                <label for="roomFilter">Phòng</label>
+                <select id="roomFilter">
+                    <option value="all">Tất cả phòng</option>
+                    <option value="M503">Phòng M.503</option>
+                    <option value="TN301">Phòng TN.301</option>
+                    <option value="M405">Phòng M.405</option>
+                    <option value="HTA101">Phòng HT.A101</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="timeRange">Thời Gian</label>
+                <select id="timeRange">
+                    <option value="today">Hôm nay</option>
+                    <option value="week" selected>7 ngày qua</option>
+                    <option value="month">30 ngày qua</option>
+                    <option value="year">Năm nay</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="dateRange">Chọn Thời Gian</label>
+                <input type="date" id="dateRange">
+            </div>
+        </div>
+
+        <div class="summary-cards">
+            <div class="summary-card">
+                <div class="summary-icon">
+                    <i class="fas fa-thermometer-half"></i>
+                </div>
+                <div class="summary-value">24.5°C</div>
+                <div class="summary-label">Nhiệt độ TB</div>
+            </div>
+
+            <div class="summary-card">
+                <div class="summary-icon">
+                    <i class="fas fa-sun"></i>
+                </div>
+                <div class="summary-value">380 Lux</div>
+                <div class="summary-label">Ánh sáng TB</div>
+            </div>
+
+            <div class="summary-card">
+                <div class="summary-icon">
+                    <i class="fas fa-wind"></i>
+                </div>
+                <div class="summary-value">420 PPM</div>
+                <div class="summary-label">CO2 TB</div>
+            </div>
+        </div>
+
+        <div class="charts-container">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3><i class="fas fa-thermometer-half"></i> Biến thiên nhiệt độ</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="temperatureChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3><i class="fas fa-sun"></i> Mức độ ánh sáng</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="lightChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3><i class="fas fa-wind"></i> Mức CO2</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="co2Chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Firebase auth
+        let currentUser = null;
+        
+        // Toast notification system
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            // Set toast classes and content
+            toast.className = `toast ${type} show`;
+            toast.innerHTML = `
+                <span class="toast-icon">${getToastIcon(type)}</span>
+                <span>${message}</span>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            // Auto remove toast after 5 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    toastContainer.removeChild(toast);
+                }, 300);
+            }, 5000);
+        }
+        
+        function getToastIcon(type) {
+            switch(type) {
+                case 'success': return '<i class="fas fa-check-circle"></i>';
+                case 'error': return '<i class="fas fa-exclamation-circle"></i>';
+                case 'warning': return '<i class="fas fa-exclamation-triangle"></i>';
+                case 'info':
+                default: return '<i class="fas fa-info-circle"></i>';
+            }
+        }
+
+        // Check if user is authenticated via Firebase (only for user info)
+        auth.onAuthStateChanged(function(user) {
+            if (user) {
+                currentUser = user;
+
+                // Show user's name in header
+                document.getElementById('navUsername').textContent = user.email || user.uid;
+            } else {
+                // No user is signed in
+                document.getElementById('navUsername').textContent = 'Khách';
+            }
+        });
+
+        // Handle logout
+        document.getElementById('navLogoutBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            auth.signOut().then(function() {
+                window.location.href = 'login.html';
+            }).catch(function(error) {
+                console.error('Logout error:', error);
+            });
+        });
+
+        // Initialize the status message when page loads
+        window.addEventListener('load', function() {
+            // Update status to indicate static values
+            if (document.getElementById('statusText')) {
+                document.getElementById('statusText').textContent = "Chế độ xem mẫu - Dữ liệu báo cáo";
+            }
+
+            // Show welcome toast
+            showToast('Chào mừng đến với trang báo cáo!', 'info');
+
+            // Initialize charts after a short delay
+            setTimeout(initializeCharts, 1000);
+
+            // Hide loading overlay after page has loaded
+            setTimeout(function() {
+                document.getElementById('loadingOverlay').classList.add('hidden');
+            }, 1000);
+        });
+
+        // Initialize charts with sample data
+        function initializeCharts() {
+            // Temperature Chart
+            const tempCtx = document.getElementById('temperatureChart').getContext('2d');
+            new Chart(tempCtx, {
+                type: 'line',
+                data: {
+                    labels: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
+                    datasets: [{
+                        label: 'Nhiệt độ (°C)',
+                        data: [23.5, 24.2, 25.1, 24.8, 25.3, 24.7, 24.5],
+                        borderColor: '#673ab7',
+                        backgroundColor: 'rgba(103, 58, 183, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+
+            // Light Chart
+            const lightCtx = document.getElementById('lightChart').getContext('2d');
+            new Chart(lightCtx, {
+                type: 'line',
+                data: {
+                    labels: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
+                    datasets: [{
+                        label: 'Ánh sáng (Lux)',
+                        data: [320, 380, 420, 450, 390, 350, 380],
+                        borderColor: '#FF9800',
+                        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+
+            // CO2 Chart
+            const co2Ctx = document.getElementById('co2Chart').getContext('2d');
+            new Chart(co2Ctx, {
+                type: 'line',
+                data: {
+                    labels: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
+                    datasets: [{
+                        label: 'CO2 (PPM)',
+                        data: [380, 420, 450, 480, 410, 390, 420],
+                        borderColor: '#4CAF50',
+                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+
+        }
+
+        // Add event listeners to filter controls
+        document.getElementById('roomFilter').addEventListener('change', function() {
+            showToast(`Đang cập nhật báo cáo cho ${this.value === 'all' ? 'tất cả phòng' : this.value}`, 'info');
+        });
+
+        document.getElementById('timeRange').addEventListener('change', function() {
+            showToast(`Đang cập nhật báo cáo theo ${this.selectedOptions[0].text}`, 'info');
+        });
+    </script>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Đang tải dữ liệu báo cáo...</div>
+    </div>
+</body>
+</html>

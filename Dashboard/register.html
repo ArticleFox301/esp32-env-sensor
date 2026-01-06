@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Dashboard</title>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="firebase-config.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #4cc9f0 0%, #4361ee 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .register-container {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 40px 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 420px;
+            position: relative;
+            overflow: hidden;
+            animation: fadeInUp 0.6s ease;
+        }
+
+        .register-container::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            z-index: 0;
+        }
+
+        .register-form {
+            position: relative;
+            z-index: 1;
+        }
+
+        .register-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .register-header h2 {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .register-header p {
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--dark);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .input-with-icon {
+            position: relative;
+        }
+
+        .input-with-icon i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray);
+        }
+
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 14px 14px 14px 45px;
+            border: 2px solid #e1e5eb;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background-color: white;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(40, 167, 69, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .message {
+            text-align: center;
+            margin-top: 15px;
+            color: #28a745;
+            min-height: 20px;
+            font-weight: 500;
+        }
+
+        .error-message {
+            color: var(--danger);
+        }
+
+        .link {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .link a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .link a:hover {
+            text-decoration: underline;
+            color: var(--secondary);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <div class="register-form">
+            <div class="register-header">
+                <h2><i class="fas fa-user-plus"></i> Create Account</h2>
+                <p>Join our dashboard to monitor IoT sensors</p>
+            </div>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="regUsername"><i class="fas fa-user"></i> Username</label>
+                    <div class="input-with-icon">
+                        <input type="text" id="regUsername" name="regUsername" required placeholder="Choose a username">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="regPassword"><i class="fas fa-key"></i> Password</label>
+                    <div class="input-with-icon">
+                        <input type="password" id="regPassword" name="regPassword" required placeholder="Create a password">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword"><i class="fas fa-lock"></i> Confirm Password</label>
+                    <div class="input-with-icon">
+                        <input type="password" id="confirmPassword" name="confirmPassword" required placeholder="Confirm your password">
+                    </div>
+                </div>
+                <button type="submit"><i class="fas fa-user-check"></i> Register Now</button>
+            </form>
+            <div id="message" class="message"></div>
+            <div class="link">
+                <p>Already have an account? <a href="login.html"><i class="fas fa-sign-in-alt"></i> Login here</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const email = document.getElementById('regUsername').value; // Using email for Firebase
+            const password = document.getElementById('regPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const messageDiv = document.getElementById('message');
+
+            // Validation
+            if (password !== confirmPassword) {
+                messageDiv.textContent = 'Passwords do not match';
+                messageDiv.className = 'message error-message';
+                // Add shake animation for error
+                document.querySelector('.register-container').style.animation = 'none';
+                setTimeout(() => {
+                    document.querySelector('.register-container').style.animation = 'fadeInUp 0.6s ease';
+                }, 10);
+                return;
+            }
+
+            if (password.length < 6) {
+                messageDiv.textContent = 'Password must be at least 6 characters';
+                messageDiv.className = 'message error-message';
+                // Add shake animation for error
+                document.querySelector('.register-container').style.animation = 'none';
+                setTimeout(() => {
+                    document.querySelector('.register-container').style.animation = 'fadeInUp 0.6s ease';
+                }, 10);
+                return;
+            }
+
+            // Show loading state
+            const submitButton = document.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.innerHTML;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating account...';
+            submitButton.disabled = true;
+
+            // Create user with Firebase
+            auth.createUserWithEmailAndPassword(email, password)
+                .then(function(userCredential) {
+                    // User created successfully
+                    const user = userCredential.user;
+                    console.log('User created:', user.email);
+
+                    // Show success message
+                    messageDiv.textContent = 'Registration successful! Redirecting...';
+                    messageDiv.className = 'message';
+
+                    // Clear form
+                    document.getElementById('registerForm').reset();
+
+                    // Redirect to login after 1.5 seconds
+                    setTimeout(() => {
+                        window.location.href = 'login.html';
+                    }, 1500);
+                })
+                .catch(function(error) {
+                    const errorCode = error.code;
+                    const errorMessageText = error.message;
+
+                    // Display error message
+                    messageDiv.textContent = errorMessageText;
+                    messageDiv.className = 'message error-message';
+
+                    // Add shake animation for error
+                    document.querySelector('.register-container').style.animation = 'none';
+                    setTimeout(() => {
+                        document.querySelector('.register-container').style.animation = 'fadeInUp 0.6s ease';
+                    }, 10);
+                })
+                .finally(function() {
+                    // Reset button state
+                    submitButton.innerHTML = originalButtonText;
+                    submitButton.disabled = false;
+                });
+        });
+    </script>
+</body>
+</html>

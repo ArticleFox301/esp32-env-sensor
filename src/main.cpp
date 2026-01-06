@@ -9,6 +9,7 @@
 #include "relay.h"
 #include "mqtt.h"
 #include "globals.h"
+#include "firebase_rtdb.h"
 
 // Global variable to track manual/auto mode
 bool manualMode = true; // Start in manual mode by default
@@ -20,7 +21,7 @@ const char* password = "@dimuonnoi@";
 
 void setup() {
   Serial.begin(115200);
-  
+
 
   if(!SPIFFS.begin(true)) {
     Serial.println("SPIFFS failed");
@@ -43,15 +44,17 @@ void setup() {
   thingspeak_init();
   relay_init();  // Initialize relays
   mqtt_init();   // Initialize MQTT
+  firebase_init(); // Initialize Firebase
 
   Serial.println("✅ Hệ thống sẵn sàng");
-  
+
   // Publish initial relay status after everything is initialized
   mqtt_publish_relay_status();
 }
 
 void loop() {
   mqtt_loop();  // Handle MQTT operations
+  firebase_loop(); // Handle Firebase operations
 
   float t = readTemperature();
   float h = readHumidity();
@@ -73,6 +76,9 @@ void loop() {
 
     // Publish data to MQTT (real-time)
     mqtt_publish_sensor_data(t, h, l, aq);
+
+    // Send data to Firebase (real-time)
+    firebase_send_data(t, h, l, aq);
   }
   alert_light(l);
   alert_air(aq);
@@ -88,7 +94,7 @@ void loop() {
     } else {
       relay1_off(); // Turn off relay 1 otherwise
     }
-    
+
     if (l < 40) {  // If light level < 40
       relay2_on();  // Turn on relay 2
     } else {
