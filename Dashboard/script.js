@@ -254,7 +254,7 @@ function initMqtt() {
         }
         
         if (statusText) statusText.textContent = "Cập nhật trạng thái relay từ ESP32";
-        if (lastUpdate) lastUpdate.textContent = new Date().toLocaleString();
+        if (lastUpdate) lastUpdate.textContent = new Date().toLocaleString('vi-VN', {timeZone: 'Asia/Ho_Chi_Minh'});
         if (errorMessage) errorMessage.style.display = "none";
       }
       // Handle sensor data message
@@ -264,7 +264,7 @@ function initMqtt() {
         
         // Update status and last update time
         if (statusText) statusText.textContent = "MQTT cập nhật dữ liệu cảm biến";
-        if (lastUpdate) lastUpdate.textContent = new Date().toLocaleString();
+        if (lastUpdate) lastUpdate.textContent = new Date().toLocaleString('vi-VN', {timeZone: 'Asia/Ho_Chi_Minh'});
         if (errorMessage) errorMessage.style.display = "none";
       }
     } catch (e) {
@@ -284,7 +284,7 @@ function updateDashboardData(data) {
   document.getElementById("airValue").textContent = data.air_quality !== undefined ? data.air_quality : '--';
 
   // Update chart
-  chart.data.labels.push(new Date().toLocaleTimeString());
+  chart.data.labels.push(new Date().toLocaleTimeString('vi-VN', {timeZone: 'Asia/Ho_Chi_Minh'}));
   chart.data.datasets[0].data.push(data.temperature !== undefined ? data.temperature : null);
   chart.data.datasets[1].data.push(data.humidity !== undefined ? data.humidity : null);
   chart.data.datasets[2].data.push(data.light !== undefined ? data.light : null);

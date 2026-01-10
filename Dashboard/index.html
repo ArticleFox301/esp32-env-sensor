@@ -162,9 +162,6 @@
         <button class="btn btn-refresh" id="refreshBtn">
           <i class="fas fa-sync-alt"></i> Làm mới dữ liệu
         </button>
-        <button class="btn btn-save" id="saveDataBtn">
-          <i class="fas fa-save"></i> Lưu dữ liệu
-        </button>
       </div>
       
       <div class="status">
@@ -458,9 +455,9 @@
       // Update light card color based on value
       updateLightCardColor(data.light || '--');
 
-      // Update last update time
+      // Update last update time with Vietnam timezone
       document.getElementById('lastUpdate').textContent = data.timestamp ?
-        new Date(data.timestamp).toLocaleString() : 'Chưa có dữ liệu';
+        new Date(data.timestamp).toLocaleString('vi-VN', {timeZone: 'Asia/Ho_Chi_Minh'}) : 'Chưa có dữ liệu';
     }
 
     // Function to update light card color based on value
@@ -805,17 +802,17 @@
       // Add new data points
       if (data && data.length > 0) {
         data.forEach(item => {
-          // Format the timestamp for the x-axis
+          // Format the timestamp for the x-axis with Vietnam timezone
           let timeLabel = '';
           if (item.timestamp instanceof Date) {
-            timeLabel = item.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            timeLabel = item.timestamp.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit', timeZone: 'Asia/Ho_Chi_Minh'});
           } else if (typeof item.timestamp === 'string') {
             // If timestamp is already a string, try to parse it
             const dateObj = new Date(item.timestamp);
-            timeLabel = dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            timeLabel = dateObj.toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit', timeZone: 'Asia/Ho_Chi_Minh'});
           } else {
             // Fallback: use timestamp field or create a generic label
-            timeLabel = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            timeLabel = new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit', timeZone: 'Asia/Ho_Chi_Minh'});
           }
 
           historyChart.data.labels.push(timeLabel);
@@ -991,34 +988,39 @@
       }
     }
 
-    // Helper function to calculate start date based on range
+    // Helper function to calculate start date based on range with Vietnam timezone consideration
     function getStartDate(dateRange) {
+      // Create a Date object for current time as perceived in Vietnam
+      // This creates a date object using the current time converted to Vietnam timezone
       const now = new Date();
-      console.log("Current date/time:", now);
-      console.log("Calculating start date for range:", dateRange);
 
+      // Calculate Vietnam time by finding the equivalent time in Vietnam zone
+      const utc = now.getTime() + (now.getTimezoneOffset() * 60000); // Convert to UTC
+      const vietnamTime = new Date(utc + (7 * 3600000)); // Add 7 hours for Vietnam (UTC+7)
+
+      // Calculate start time based on range in Vietnam time
       let startDate;
       switch(dateRange) {
         case '1h':
-          startDate = new Date(now.getTime() - (1 * 60 * 60 * 1000)); // 1 hour ago
+          startDate = new Date(vietnamTime.getTime() - (1 * 60 * 60 * 1000)); // 1 hour ago Vietnam time
           break;
         case '6h':
-          startDate = new Date(now.getTime() - (6 * 60 * 60 * 1000)); // 6 hours ago
+          startDate = new Date(vietnamTime.getTime() - (6 * 60 * 60 * 1000)); // 6 hours ago Vietnam time
           break;
         case '24h':
-          startDate = new Date(now.getTime() - (24 * 60 * 60 * 1000)); // 24 hours ago
+          startDate = new Date(vietnamTime.getTime() - (24 * 60 * 60 * 1000)); // 24 hours ago Vietnam time
           break;
         case '7d':
-          startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000)); // 7 days ago
+          startDate = new Date(vietnamTime.getTime() - (7 * 24 * 60 * 60 * 1000)); // 7 days ago Vietnam time
           break;
         case '30d':
-          startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000)); // 30 days ago
+          startDate = new Date(vietnamTime.getTime() - (30 * 24 * 60 * 60 * 1000)); // 30 days ago Vietnam time
           break;
         default:
-          startDate = new Date(now.getTime() - (24 * 60 * 60 * 1000)); // Default to 24 hours
+          startDate = new Date(vietnamTime.getTime() - (24 * 60 * 60 * 1000)); // Default to 24 hours Vietnam time
       }
 
-      console.log("Start date calculated:", startDate);
+      console.log("Start date calculated for range (Vietnam timezone):", startDate);
       return startDate;
     }
 
@@ -1065,18 +1067,33 @@
               if (sensorReading) {
                 // Combine date and time for full timestamp
                 const dateTimeStr = `${dateKey} ${timeKey}`;
-                const timestamp = new Date(dateTimeStr);
 
-                console.log("Created timestamp:", timestamp);
+                // The dateTimeStr is in format "YYYY-MM-DD HH:MM:SS", which Firebase likely stores as local time
+                // Interpret this time in Vietnam timezone context
+                const [datePart, timePart] = dateTimeStr.split(' ');
+                const [year, month, day] = datePart.split('-').map(Number);
+                const [hours, minutes, seconds] = timePart.split(':').map(Number);
 
-                // Add the data point (Firebase already filtered by startKey, so we don't need to filter again)
-                processedData.push({
-                  timestamp: timestamp,
-                  temperature: sensorReading.temperature !== undefined && sensorReading.temperature !== null ? parseFloat(sensorReading.temperature) : null,
-                  humidity: sensorReading.humidity !== undefined && sensorReading.humidity !== null ? parseFloat(sensorReading.humidity) : null,
-                  light: sensorReading.light !== undefined && sensorReading.light !== null ? parseInt(sensorReading.light) : null,
-                  airQuality: sensorReading.airQuality !== undefined && sensorReading.airQuality !== null ? parseInt(sensorReading.airQuality) : null
-                });
+                // Create a Date object representing the time in Vietnam timezone
+                // Since we want to treat the stored time as local Vietnam time (not UTC),
+                // we create the date directly and then account for timezone
+                const timestamp = new Date(year, month - 1, day, hours, minutes, seconds);
+
+                console.log("Created timestamp:", timestamp, "(Vietnam time)");
+
+                // Only add the data point if it falls within the requested date range
+                // Compare using the start date that was calculated with timezone awareness
+                if (timestamp >= startDate) {
+                  processedData.push({
+                    timestamp: timestamp, // Keep as corrected Vietnam time for display purposes
+                    temperature: sensorReading.temperature !== undefined && sensorReading.temperature !== null ? parseFloat(sensorReading.temperature) : null,
+                    humidity: sensorReading.humidity !== undefined && sensorReading.humidity !== null ? parseFloat(sensorReading.humidity) : null,
+                    light: sensorReading.light !== undefined && sensorReading.light !== null ? parseInt(sensorReading.light) : null,
+                    airQuality: sensorReading.airQuality !== undefined && sensorReading.airQuality !== null ? parseInt(sensorReading.airQuality) : null
+                  });
+                } else {
+                  console.log("Skipping data point outside date range:", timestamp);
+                }
               }
             }
           }
